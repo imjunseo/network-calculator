@@ -21,6 +21,11 @@ public class calculator_client {
             // Read the command line from the user
             String sentence = inFromUser.readLine(); 
 
+            if (sentence == null) {
+                return;
+            }
+            clientSocket.setSoTimeout(10_000);
+
             // Send the command to the server
             // '\n' is crucial as the server uses readLine()
             outToServer.writeBytes(sentence + '\n');
@@ -31,15 +36,15 @@ public class calculator_client {
             String valueLine = inFromServer.readLine();
             
             // Parse the server's response
-            if (statusLine != null && statusLine.equals("STATUS: 200")) {
+            if ("STATUS: 200".equals(statusLine) && valueLine != null && valueLine.startsWith("VALUE: ")) {
             	// Success case
                 System.out.println("Answer: " + valueLine.substring(7)); 
-            } else if (statusLine != null) {
+            } else if (valueLine != null && valueLine.startsWith("ERROR: ")) {
             	// Error case (400, 401, 500)
                 System.out.println("Error: " + valueLine.substring(7)); 
             } else {
             	// Should not happen if server protocol is correct
-                System.out.println("Error: No response from server.");
+                System.out.println("Error: No complete response from server.");
             }
         } catch (UnknownHostException e) {
             System.err.println("Server not found: " + e.getMessage());

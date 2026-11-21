@@ -2,13 +2,15 @@ package myfirstnetworkapp;
 
 import java.io.*;
 import java.net.*;
+import java.util.Locale;
 import java.util.StringTokenizer;
 
 /*Each instance of this class handles one client connection in a separate thread
 (managed by the ThreadPool). */
 public class Calculator implements Runnable {
     
-    private Socket socket; // The specific socket for this one client
+    private static final int MAX_REQUEST_LENGTH = 256;
+    private final Socket socket; // The specific socket for this one client
 
     // Constructor: The server passes the client's socket to this task
     public Calculator(Socket socket) {
@@ -25,11 +27,12 @@ public class Calculator implements Runnable {
             DataOutputStream outToClient = new DataOutputStream(socket.getOutputStream())
         ) {
             // 1. Read the command from the client (e.g., "ADD 10 20")
-            clientSentence = inFromClient.readLine();
+            socket.setSoTimeout(5_000);
+            clientSentence = readRequest(inFromClient);
             
             // Log to server console
             if (clientSentence != null) {
-                System.out.println("FROM CLIENT: " + clientSentence);
+                System.out.println("Received a calculation request.");
             } else {
                 return; // Client disconnected without sending data
             }
@@ -38,18 +41,16 @@ public class Calculator implements Runnable {
             try {
                 // Use StringTokenizer to parse the command (e.g., "ADD", "10", "20")
                 StringTokenizer st = new StringTokenizer(clientSentence);
-                String op = st.nextToken().toUpperCase(); // "ADD"
+                if (st.countTokens() != 3) {
+                    throw new IllegalArgumentException("expected an operation and two integers");
+                }
+                String op = st.nextToken().toUpperCase(Locale.ROOT); // "ADD"
                 
-                int num1 = Integer.parseInt(st.nextToken()); //"10"
-                int num2 = Integer.parseInt(st.nextToken()); //"20"
+                long num1 = Integer.parseInt(st.nextToken()); //"10"
+                long num2 = Integer.parseInt(st.nextToken()); //"20"
                 double result = 0;
 
-                //Check for too many arguments
-                if (st.hasMoreTokens()) {
-                    throw new IllegalArgumentException("too many arguments");
-                }
-
-                //Perform 4 basic operations
+                // Perform the four supported operations.
                 switch (op) {
                     case "ADD":
                         result = num1 + num2;
@@ -75,7 +76,7 @@ public class Calculator implements Runnable {
                 //Format success response
                 response = "STATUS: 200\nVALUE: " + result + "\n";
 
-            } catch (Exception e) {
+            } catch (IllegalArgumentException | ArithmeticException e) {
                 // Catch all calculation/parsing errors (e.g., "ADD 10", ArithmeticEx, IllegalArgEx)
                 
                 //Format error response
@@ -83,12 +84,8 @@ public class Calculator implements Runnable {
                 if (e instanceof ArithmeticException) {
                     // "divided by zero"
                     response = "STATUS: 400\nERROR: " + errorType + "\n";
-                } else if (e instanceof IllegalArgumentException) {
-                    // "too many arguments" or "Invalid operation"
-                    response = "STATUS: 401\nERROR: " + errorType + "\n";
                 } else {
-                    // Handle other errors (like NumberFormatException or NoSuchElementException)
-                    response = "STATUS: 500\nERROR: " + "Invalid command format" + "\n";
+                    response = "STATUS: 401\nERROR: Invalid command or operands\n";
                 }
             }
             
@@ -106,5 +103,17 @@ public class Calculator implements Runnable {
                 e.printStackTrace();
             }
         }
+    }
+
+    private static String readRequest(BufferedReader input) throws IOException {
+        StringBuilder request = new StringBuilder();
+        int character;
+        while ((character = input.read()) != -1 && character != '\n') {
+            if (request.length() == MAX_REQUEST_LENGTH) {
+                throw new IOException("Request exceeds maximum length");
+            }
+            request.append((char) character);
+        }
+        return character == -1 && request.length() == 0 ? null : request.toString().strip();
     }
 }

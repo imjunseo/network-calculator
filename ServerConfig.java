@@ -16,6 +16,10 @@ public class ServerConfig {
         	this.serverIP = br.readLine();
         	// Read the second line as Port
             this.port = Integer.parseInt(br.readLine());
+            if (serverIP == null || serverIP.isBlank() || port < 1 || port > 65_535) {
+                throw new NumberFormatException("Invalid host or port");
+            }
+            this.serverIP = serverIP.strip();
             System.out.println("Config file loaded: " + serverIP + ":" + port);
         } catch (FileNotFoundException e) {
             System.err.println("Config file not found. Using default settings.");
